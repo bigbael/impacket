@@ -35,6 +35,7 @@ import os
 import sys
 from datetime import datetime
 from binascii import hexlify, unhexlify
+from time import time
 
 from pyasn1.codec.der import decoder
 from impacket import version
@@ -83,6 +84,8 @@ class GetUserSPNs:
         self.__kdcHost = cmdLineOptions.dc_ip
         self.__saveTGS = cmdLineOptions.save
         self.__requestUser = cmdLineOptions.request_user
+        self.__nonexpiring = cmdLineOptions.non_expiring
+        self.__lastset = cmdLineOptions.last_set
         if cmdLineOptions.hashes is not None:
             self.__lmhash, self.__nthash = cmdLineOptions.hashes.split(':')
 
@@ -197,7 +200,7 @@ class GetUserSPNs:
                 hexlify(str(decodedTGS['ticket']['enc-part']['cipher'][:16])),
                 hexlify(str(decodedTGS['ticket']['enc-part']['cipher'][16:])))
             if fd is None:
-                print entry
+                print(entry)
             else:
                 fd.write(entry+'\n')
         elif decodedTGS['ticket']['enc-part']['etype'] == constants.EncryptionTypes.aes256_cts_hmac_sha1_96.value:
@@ -250,7 +253,7 @@ class GetUserSPNs:
             else:
                 ldapConnection.kerberosLogin(self.__username, self.__password, self.__domain, self.__lmhash, self.__nthash,
                                              self.__aesKey, kdcHost=self.__kdcHost)
-        except ldap.LDAPSessionError, e:
+        except(ldap.LDAPSessionError, e):
             if str(e).find('strongerAuthRequired') >= 0:
                 # We need to try SSL
                 ldapConnection = ldap.LDAPConnection('ldaps://%s' % self.__target, self.baseDN, self.__kdcHost)
@@ -266,11 +269,19 @@ class GetUserSPNs:
         searchFilter = "(&(servicePrincipalName=*)(UserAccountControl:1.2.840.113556.1.4.803:=512)" \
                        "(!(UserAccountControl:1.2.840.113556.1.4.803:=2))"
 
+        if self.__nonexpiring:
+            searchFilter += '(UserAccountControl:1.2.840.113556.1.4.803:=65536)'
+
+        if self.__lastset is not None:
+            print self.__lastset
+            PwdDate = int(time() - (int(self.__lastset) * 86400) + ((1970-1601) * 365.242190) *86400 * 10000000)
+            print PwdDate
+            searchFilter += '(pwdlastset<=%d)' % PwdDate
+
         if self.__requestUser is not None:
             searchFilter += '(sAMAccountName:=%s))' % self.__requestUser
         else:
             searchFilter += ')'
-
         try:
             resp = ldapConnection.search(searchFilter=searchFilter,
                                          attributes=['servicePrincipalName', 'sAMAccountName',
@@ -379,6 +390,9 @@ if __name__ == '__main__':
                                                                                'in JtR/hashcat format (default False)')
     parser.add_argument('-request-user', action='store', metavar='username', help='Requests TGS for the SPN associated '
                                                           'to the user specified (just the username, no domain needed)')
+    parser.add_argument('-non-expiring', action='store_true', default='False', help='Queries only for non-expiring accounts ')
+    parser.add_argument('-last-set', action='store', metavar = "{# of days}", help='Queries for users with '
+                                                                                   'Passwords NOT reset in X days')
     parser.add_argument('-save', action='store_true', default='False', help='Saves TGS requested to disk. Format is '
                                                                             '<username>.ccache. Auto selects -request')
     parser.add_argument('-outputfile', action='store',
