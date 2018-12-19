@@ -152,7 +152,7 @@ class GetUserSPNs:
                                                                 compute_lmhash(password),
                                                                 compute_nthash(password), self.__aesKey,
                                                                 kdcHost=self.__kdcHost)
-            except Exception, e:
+            except Exception as e:
                 logging.debug('TGT: %s' % str(e))
                 tgt, cipher, oldSessionKey, sessionKey = getKerberosTGT(userName, self.__password, self.__domain,
                                                                     unhexlify(self.__lmhash),
@@ -233,7 +233,7 @@ class GetUserSPNs:
             try:
                 ccache.fromTGS(tgs, oldSessionKey, sessionKey )
                 ccache.saveFile('%s.ccache' % username)
-            except Exception, e:
+            except Exception as e:
                 logging.error(str(e))
 
     def run(self):
@@ -279,7 +279,7 @@ class GetUserSPNs:
             searchFilter += '(pwdlastset<=%d)' % PwdDate
 
         if self.__requestUser is not None:
-            searchFilter += '(sAMAccountName:=%s))' % self.__requestUser
+            searchFilter += '(sAMAccountName=%s))' % self.__requestUser
         else:
             searchFilter += ')'
         try:
@@ -341,7 +341,7 @@ class GetUserSPNs:
                     else:
                         for spn in SPNs:
                             answers.append([spn, sAMAccountName,memberOf, pwdLastSet, lastLogon])
-            except Exception, e:
+            except Exception as e:
                 logging.error('Skipping item, cannot process due to error %s' % str(e))
                 pass
 
@@ -367,7 +367,7 @@ class GetUserSPNs:
                                                                                 TGT['KDC_REP'], TGT['cipher'],
                                                                                 TGT['sessionKey'])
                         self.outputTGS(tgs, oldSessionKey, sessionKey, user, SPN, fd)
-                    except Exception , e:
+                    except Exception as e:
                         logging.error('SPN: %s - %s' % (SPN,str(e)))
                 if fd is not None:
                     fd.close()
@@ -452,7 +452,7 @@ if __name__ == '__main__':
     try:
         executer = GetUserSPNs(username, password, domain, options)
         executer.run()
-    except Exception, e:
+    except Exception as e:
         #import traceback
         #print traceback.print_exc()
         print str(e)
